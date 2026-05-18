@@ -1,5 +1,5 @@
-#define S1 A0     
-#define S2 A1 
+#define S1 A0
+#define S2 A1
 #define S3 A2
 #define S4 A3
 #define S5 A4
@@ -12,17 +12,19 @@
 #define IN4 11
 
 // --- Constantes de Control ---
-int baseSpeed = 215;    
-int maxSpeed = 200;    
-float Kp = 35.0;       
-float Kd = 40.0;       
+int baseSpeed = 150;
+int maxSpeed = 255;
+float Kp = 35.0;
+float Kd = 40.0;
 
 // --- AJUSTE DE HARDWARE ---
 // Si el motor DERECHO sigue lento, sube este número (ej: 1.3, 1.4)
 // Si se pasa de rápido, bájalo (ej: 1.1)
-float compensacionDerecha = 1.4; 
+float compensacionDerecha = 1.4;
 
 int lastError = 0;
+unsigned long lostLineTime = 0;
+const unsigned long coastDuration = 150;
 
 void setup() {
   Serial.begin(9600);
@@ -46,18 +48,32 @@ void loop() {
   // 3. Caso: Fuera de la línea
 
   if (s1 + s2 + s3 + s4 + s5 == 0) {
-    delay(120);
-    if (lastError < 0)  moveMotors(120, -108);
-    else moveMotors(-108, 120);
+    // Si estábamos en el centro (abs(lastError) < 4), asumimos línea punteada y esperamos.
+    // Si estábamos en los extremos (abs(lastError) >= 4), asumimos curva de 90 grados y saltamos la espera.
+    if (abs(lastError) < 4) {
+      if (lostLineTime == 0) {
+        lostLineTime = millis();
+      }
+
+      if (millis() - lostLineTime < coastDuration) {
+        return; // Seguir recto (coasting) por los espacios de la línea punteada
+      }
+    }
+
+    // Si ha pasado el tiempo, o si estábamos en una curva cerrada, empezar a buscar fuertemente
+    if (lastError < 0)  moveMotors(150, -135);
+    else moveMotors(-135, 150);
     return;
+  } else {
+    lostLineTime = 0; // Reiniciamos el timer cuando ve la línea
   }
 
   // Si solo el sensor central ve la línea, ignoramos el PD y vamos recto
   if (s3 == 1 && s1 == 0 && s2 == 0 && s4 == 0 && s5 == 0) {
-    int vDerecha = baseSpeed * compensacionDerecha;
+    int vDerecha = constrain(baseSpeed * compensacionDerecha, -120, maxSpeed);
     moveMotors(baseSpeed, vDerecha);
     lastError = 0;
-    return; 
+    return;
   }
 
   // 4. Algoritmo PD
