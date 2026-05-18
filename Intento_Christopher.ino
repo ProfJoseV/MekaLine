@@ -48,17 +48,21 @@ void loop() {
   // 3. Caso: Fuera de la línea
 
   if (s1 + s2 + s3 + s4 + s5 == 0) {
-    if (lostLineTime == 0) {
-      lostLineTime = millis();
+    // Si estábamos en el centro (abs(lastError) < 4), asumimos línea punteada y esperamos.
+    // Si estábamos en los extremos (abs(lastError) >= 4), asumimos curva de 90 grados y saltamos la espera.
+    if (abs(lastError) < 4) {
+      if (lostLineTime == 0) {
+        lostLineTime = millis();
+      }
+
+      if (millis() - lostLineTime < coastDuration) {
+        return; // Seguir recto (coasting) por los espacios de la línea punteada
+      }
     }
 
-    if (millis() - lostLineTime < coastDuration) {
-      return; // Seguir recto (coasting) por los espacios de la línea punteada
-    }
-
-    // Si ha pasado el tiempo, empezar a buscar
-    if (lastError < 0)  moveMotors(120, -108);
-    else moveMotors(-108, 120);
+    // Si ha pasado el tiempo, o si estábamos en una curva cerrada, empezar a buscar fuertemente
+    if (lastError < 0)  moveMotors(150, -135);
+    else moveMotors(-135, 150);
     return;
   } else {
     lostLineTime = 0; // Reiniciamos el timer cuando ve la línea
